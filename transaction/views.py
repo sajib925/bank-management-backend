@@ -1,154 +1,229 @@
-from decimal import Decimal, InvalidOperation
-from datetime import datetime
-from django.shortcuts import get_object_or_404
-from rest_framework import generics, status
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
-from .models import Transaction
-from account.models import Customer
-from .serializers import TransactionSerializer
-from .constants import LOAN_PAID, LOAN
+from rest_framework.response import Response
+from rest_framework import status
+from .models import BalanceTransfer, Loan, Deposit, Withdrawal
+from .serializers import BalanceTransferSerializer, LoanSerializer, DepositSerializer, WithdrawalSerializer
+from django.shortcuts import get_object_or_404
+from account.models import Customer, Manager
+from rest_framework.permissions import IsAuthenticated
+from decimal import Decimal, InvalidOperation
 
-class DepositMoneyView(APIView):
+
+
+
+class BalanceTransferCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, *args, **kwargs):
-        data = request.data.copy()  # Create a copy of request data
-        data['account'] = request.user.id  # Set the account field to the current user
+    def get(self, request):
+        user = request.user
 
+        if hasattr(user, 'manager'):
+            # If the user is a manager, return all balance transfers
+            transfers = BalanceTransfer.objects.all()
+        else:
+            # If the user is a customer, return only their balance transfers
+            try:
+                customer = get_object_or_404(Customer, user=user)
+                transfers = BalanceTransfer.objects.filter(sender=customer)
+            except Customer.DoesNotExist:
+                return Response({"error": "Customer not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = BalanceTransferSerializer(transfers, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        # Ensure user is authenticated
+        if not request.user.is_authenticated:
+            return Response({"error": "Authentication credentials were not provided."},
+                            status=status.HTTP_401_UNAUTHORIZED)
+
+        # Set sender and perform balance transfer
         try:
-            # Convert amount to Decimal if it's a string
-            if isinstance(data.get('amount'), str):
-                data['amount'] = Decimal(data['amount'])
-        except (ValueError, InvalidOperation):
-            return Response({"amount": "Invalid amount format."}, status=status.HTTP_400_BAD_REQUEST)
+            serializer = BalanceTransferSerializer(data=request.data, context={'request': request})
+            if serializer.is_valid():
+                # Perform additional validation if needed
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Customer.DoesNotExist:
+            return Response({"error": "Customer not found"}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer = TransactionSerializer(data=data)
+
+class LoanListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        # Check if the user is authenticated
+        if not user.is_authenticated:
+            return Response({'detail': 'Authentication credentials were not provided.'},
+                            status=status.HTTP_401_UNAUTHORIZED)
+
+        if hasattr(user, 'manager'):
+            # If the user is a manager, return all loans
+            loans = Loan.objects.all()
+        elif hasattr(user, 'customer'):
+            # If the user is a customer, return only their loans
+            loans = Loan.objects.filter(customer=user.customer)
+        else:
+            return Response({'detail': 'User type not recognized.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = LoanSerializer(loans, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        user = request.user
+
+        # Check if the user is authenticated
+        if not user.is_authenticated:
+            return Response({'detail': 'Authentication credentials were not provided.'},
+                            status=status.HTTP_401_UNAUTHORIZED)
+
+        serializer = LoanSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
-            transaction = serializer.save()
-
-            # Add the deposited amount to the user's balance
-            user_account = Customer.objects.get(user=request.user)
-            user_account.balance = Decimal(user_account.balance) + transaction.amount
-            user_account.save(update_fields=['balance'])
-
+            serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class WithdrawMoneyView(APIView):
-    permission_classes = [IsAuthenticated]
+class LoanDetailView(APIView):
+    def get(self, request, pk):
+        loan = get_object_or_404(Loan, pk=pk)
+        serializer = LoanSerializer(loan)
+        return Response(serializer.data)
 
-    def post(self, request):
-        data = request.data.copy()
-        data['account'] = request.user.id  # Set the account field to the current user
-
-        serializer = TransactionSerializer(data=data)
+    def put(self, request, pk):
+        loan = get_object_or_404(Loan, pk=pk)
+        serializer = LoanSerializer(loan, data=request.data, partial=True)
         if serializer.is_valid():
-            amount = serializer.validated_data.get('amount')
-            user_account = Customer.objects.get(user=request.user)
-
-            # Check if the user has sufficient balance
-            if amount > Decimal(user_account.balance):
-                return Response({'error': 'Insufficient funds'}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Deduct the amount from the user's balance
-            user_account.balance = Decimal(user_account.balance) - amount
-            user_account.save(update_fields=['balance'])
-
-            # Save the transaction
             serializer.save()
-
-            return Response({'message': 'Withdrawal successful'}, status=status.HTTP_200_OK)
+            return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class LoanRequestView(APIView):
+    def delete(self, request, pk):
+        loan = get_object_or_404(Loan, pk=pk)
+        loan.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+class LoanApproveView(APIView):
+    def post(self, request, pk):
+        loan = get_object_or_404(Loan, pk=pk)
+        amount_approved = request.data.get('amount_approved')
+
+        if amount_approved is not None:
+            try:
+                amount_approved = Decimal(amount_approved)
+            except (ValueError, InvalidOperation):
+                return Response({"amount_approved": "Invalid amount."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Ensure the user is a Manager
+            if not hasattr(request.user, 'manager'):
+                return Response({"detail": "You do not have permission to approve loans."},
+                                status=status.HTTP_403_FORBIDDEN)
+
+            # Get the Manager instance
+            manager = request.user.manager
+
+            # Call the approve_loan method with the correct Manager instance
+            loan.approve_loan(manager=manager, amount_approved=amount_approved)
+            return Response(LoanSerializer(loan).data)
+
+        return Response({"amount_approved": "This field is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class LoanRejectView(APIView):
+    def post(self, request, pk):
+        loan = get_object_or_404(Loan, pk=pk)
+
+        # Ensure the user is a Manager
+        if not hasattr(request.user, 'manager'):
+            return Response({"detail": "You do not have permission to reject loans."},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        # Get the Manager instance
+        manager = request.user.manager
+
+        # Call the reject_loan method with the correct Manager instance
+        try:
+            loan.reject_loan(manager=manager)
+            # Use a serializer to return relevant data (optional)
+            serializer = LoanSerializer(loan)
+            return Response(serializer.data)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class LoanRepayView(APIView):
+    def post(self, request, pk):
+        loan = get_object_or_404(Loan, pk=pk)
+        amount = request.data.get('amount')
+        try:
+            loan.repay_loan(amount)
+            return Response({"status": "Loan repaid successfully"})
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+class DepositCreateView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        # Check if the user is a manager
+        if hasattr(user, 'manager'):
+            # If the user is a manager, return all deposits
+            deposits = Deposit.objects.all()
+        else:
+            # If the user is a customer, return only their deposits
+            customer = get_object_or_404(Customer, user=user)
+            deposits = Deposit.objects.filter(customer=customer)
+
+        serializer = DepositSerializer(deposits, many=True)
+        return Response(serializer.data)
 
     def post(self, request):
-        data = request.data.copy()
-        data['account'] = request.user.id  # Set the account field to the current user
-
-        serializer = TransactionSerializer(data=data)
+        serializer = DepositSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
-            amount = serializer.validated_data.get('amount')
-            current_loan_count = Transaction.objects.filter(
-                account=request.user,
-                transaction_type=LOAN,
-                loan_approved=True
-            ).count()
-
-            if current_loan_count >= 3:
-                return Response({'error': 'Loan limit exceeded'}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Process loan request
-            # ...
-
-            return Response({'message': 'Loan request submitted'}, status=status.HTTP_201_CREATED)
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class PayLoanView(APIView):
+    def post(self, request):
+        serializer = DepositSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class WithdrawalCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, loan_id):
-        loan = get_object_or_404(Transaction, id=loan_id)
-        if loan.loan_approved:
-            user_account = Customer.objects.get(user=loan.account)  # Assuming `account` is a User model
+    def get(self, request):
+        if hasattr(request.user, 'manager'):
+            # User is a Manager, so show all withdrawals
+            withdrawals = Withdrawal.objects.all()
+        else:
+            # User is a Customer, so show only their withdrawals
+            customer = request.user.customer
+            withdrawals = Withdrawal.objects.filter(customer=customer)
 
-            if loan.amount <= Decimal(user_account.balance):
-                user_account.balance = Decimal(user_account.balance) - loan.amount
-                user_account.save(update_fields=['balance'])
+        serializer = WithdrawalSerializer(withdrawals, many=True)
+        return Response(serializer.data)
 
-                loan.loan_approved = True
-                loan.transaction_type = LOAN_PAID
-                loan.save()
+    def post(self, request):
+        serializer = WithdrawalSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-                return Response({'message': 'Loan paid successfully'}, status=status.HTTP_200_OK)
-            else:
-                return Response({'error': 'Insufficient funds'}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({'error': 'Loan not approved'}, status=status.HTTP_400_BAD_REQUEST)
-
-class TransactionReportView(generics.ListAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = TransactionSerializer
-
-    def get_queryset(self):
-        start_date_str = self.request.query_params.get('start_date')
-        end_date_str = self.request.query_params.get('end_date')
-
-        queryset = Transaction.objects.filter(account=self.request.user)
-
-        if start_date_str and end_date_str:
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-            queryset = queryset.filter(timestamp__date__gte=start_date, timestamp__date__lte=end_date)
-
-        return queryset.distinct()
-
-class LoanListView(generics.ListAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = TransactionSerializer
-
-    def get_queryset(self):
-        return Transaction.objects.filter(
-            account=self.request.user,
-            transaction_type=LOAN
-        )
-
-
-class ApproveLoanView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, loan_id):
-        loan = get_object_or_404(Transaction, id=loan_id)
-        if loan.transaction_type != LOAN:
-            return Response({'error': 'Not a loan transaction'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if loan.loan_approved:
-            return Response({'error': 'Loan already approved'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Approve the loan
-        loan.loan_approved = True
-        loan.save()
-
-        return Response({'message': 'Loan approved successfully'}, status=status.HTTP_200_OK)

@@ -2,7 +2,6 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from . import models
 
-# Serializer for retrieving customer data, including the balance field
 class CustomerSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
 
@@ -10,13 +9,12 @@ class CustomerSerializer(serializers.ModelSerializer):
         model = models.Customer
         fields = '__all__'  # Include all fields, including balance
 
-# Serializer for creating customer data, excluding the balance field
 class CustomerCreateSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
 
     class Meta:
         model = models.Customer
-        exclude = ['balance']  # Exclude the balance field during creation
+        exclude = ['balance', 'account_no']
 
 
 
