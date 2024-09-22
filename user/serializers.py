@@ -2,6 +2,14 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from . import models
 from django.utils.translation import gettext_lazy as _
+from rest_framework import serializers
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+import base64
+import os
+
+
+
 
 
 
@@ -34,9 +42,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
         return user
 
 
-# class UserLoginSerializer(serializers.Serializer):
-#     username = serializers.CharField(required=True)
-#     password = serializers.CharField(required=True, write_only=True)
+
 class UserLoginSerializer(serializers.Serializer):
     username = serializers.CharField(required=True)
     password = serializers.CharField(required=True, write_only=True)
@@ -64,6 +70,7 @@ class UserLoginSerializer(serializers.Serializer):
             raise serializers.ValidationError({"username": _("The username you entered does not exist.")})
 
         return data
+
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):

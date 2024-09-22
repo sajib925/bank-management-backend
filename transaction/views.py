@@ -64,7 +64,7 @@ class LoanListCreateView(APIView):
 
         if hasattr(user, 'manager'):
             # If the user is a manager, return all loans
-            loans = Loan.objects.all()
+            loans = Loan.objects.select_related('customer__user').all()
         elif hasattr(user, 'customer'):
             # If the user is a customer, return only their loans
             loans = Loan.objects.filter(customer=user.customer)
@@ -173,14 +173,28 @@ class LoanRepayView(APIView):
 
 class DepositCreateView(APIView):
     permission_classes = [IsAuthenticated]
-
+#
+#     def get(self, request):
+#         user = request.user
+#
+#         # Check if the user is a manager
+#         if hasattr(user, 'manager'):
+#             # If the user is a manager, return all deposits
+#             deposits = Deposit.objects.all()
+#         else:
+#             # If the user is a customer, return only their deposits
+#             customer = get_object_or_404(Customer, user=user)
+#             deposits = Deposit.objects.filter(customer=customer)
+#
+#         serializer = DepositSerializer(deposits, many=True)
+#         return Response(serializer.data)
     def get(self, request):
         user = request.user
 
         # Check if the user is a manager
         if hasattr(user, 'manager'):
-            # If the user is a manager, return all deposits
-            deposits = Deposit.objects.all()
+            # If the user is a manager, return all deposits with customer details
+            deposits = Deposit.objects.select_related('customer__user').all()
         else:
             # If the user is a customer, return only their deposits
             customer = get_object_or_404(Customer, user=user)
@@ -188,7 +202,6 @@ class DepositCreateView(APIView):
 
         serializer = DepositSerializer(deposits, many=True)
         return Response(serializer.data)
-
     def post(self, request):
         serializer = DepositSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
@@ -211,7 +224,7 @@ class WithdrawalCreateView(APIView):
     def get(self, request):
         if hasattr(request.user, 'manager'):
             # User is a Manager, so show all withdrawals
-            withdrawals = Withdrawal.objects.all()
+            withdrawals = Withdrawal.objects.select_related('customer__user').all()
         else:
             # User is a Customer, so show only their withdrawals
             customer = request.user.customer
