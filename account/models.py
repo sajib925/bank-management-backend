@@ -10,6 +10,7 @@ class Customer(models.Model):
     nid = models.CharField(max_length=12, unique=True)
     image = models.CharField(max_length=255, null=True, blank=True)
     age = models.CharField(max_length=5)
+    occupation = models.CharField(max_length=255, null=True, blank=True)
     monthly_income = models.CharField(max_length=10)
     account_no = models.CharField(max_length=12, unique=True)
     religion = models.CharField(max_length=30, choices=RELIGION_CHOICES, null=True, blank=True)
