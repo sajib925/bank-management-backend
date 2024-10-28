@@ -153,6 +153,11 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# sslcommerz
+
+SSL_COMMERZ_STORE_ID = 'own671f4d7ec684f'
+SSL_COMMERZ_STORE_PASSWORD = 'own671f4d7ec684f@ssl'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
