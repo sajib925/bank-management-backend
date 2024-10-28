@@ -8,7 +8,6 @@ from account.models import Customer, Manager
 from rest_framework.permissions import IsAuthenticated
 from decimal import Decimal, InvalidOperation
 from django.conf import settings
-from sslcommerz_python.payment import SSLCSession
 from decimal import Decimal
 from rest_framework.views import APIView
 from sslcommerz_lib import SSLCOMMERZ
