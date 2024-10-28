@@ -155,8 +155,17 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # sslcommerz
 
-SSL_COMMERZ_STORE_ID = 'own671f4d7ec684f'
-SSL_COMMERZ_STORE_PASSWORD = 'own671f4d7ec684f@ssl'
+SSLCOMMERZ = {
+    'store_id': 'own671f4d7ec684f',
+    'store_pass': 'own671f4d7ec684f@ssl',
+    'issandbox': True,
+}
+
+
+# Define the callback URLs for SSLCOMMERZ
+SSLCOMMERZ_SUCCESS_URL = 'http://localhost:8000/payment-success/'
+SSLCOMMERZ_FAIL_URL = 'http://localhost:8000/payment-fail/'
+SSLCOMMERZ_CANCEL_URL = 'http://localhost:8000/payment-cancel/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field

@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import BalanceTransfer, Loan, Deposit, Withdrawal
-from .serializers import BalanceTransferSerializer, LoanSerializer, DepositSerializer, WithdrawalSerializer
+from .serializers import BalanceTransferSerializer, LoanSerializer, DepositSerializer, WithdrawalSerializer, PaymentInitiateSerializer, PaymentStatusSerializer
 from django.shortcuts import get_object_or_404
 from account.models import Customer, Manager
 from rest_framework.permissions import IsAuthenticated
@@ -10,7 +10,11 @@ from decimal import Decimal, InvalidOperation
 from django.conf import settings
 from sslcommerz_python.payment import SSLCSession
 from decimal import Decimal
-from django.urls import reverse
+from rest_framework.views import APIView
+from sslcommerz_lib import SSLCOMMERZ
+from django.conf import settings
+from decimal import Decimal
+from .models import Deposit, Customer
 
 
 
@@ -232,76 +236,59 @@ class WithdrawalCreateView(APIView):
 
 
 class InitiatePaymentView(APIView):
-    permission_classes = [IsAuthenticated]
-
     def post(self, request):
-        user = request.user
-        customer = get_object_or_404(Customer, user=user)
-        amount = request.data.get('amount')
+        serializer = PaymentInitiateSerializer(data=request.data)
+        if serializer.is_valid():
+            sslcz = SSLCOMMERZ(settings.SSLCOMMERZ)
+            amount = serializer.validated_data['amount']
+            customer_id = serializer.validated_data['customer_id']
+            customer = Customer.objects.get(id=customer_id)
 
-        # SSLCommerz payment initialization
-        sslcz = SSLCSession(
-            sslcommerz_settings={
-                'store_id': settings.SSL_COMMERZ_STORE_ID,
-                'store_pass': settings.SSL_COMMERZ_STORE_PASSWORD,
-                'issandbox': True  # Set to False in production
+            post_body = {
+                'total_amount': amount,
+                'currency': 'BDT',
+                'tran_id': f'trans_{customer_id}_{amount}',  # Unique transaction ID
+                'success_url': settings.SSLCOMMERZ_SUCCESS_URL,
+                'fail_url': settings.SSLCOMMERZ_FAIL_URL,
+                'cancel_url': settings.SSLCOMMERZ_CANCEL_URL,
+                'cus_name': customer.user.username,
+                'cus_email': customer.user.email,
+                'cus_phone': customer.phone_number,
+                'cus_add1': "Dhaka Bangladesh",
+                'cus_city': "Dhaka",
+                'cus_country': 'Bangladesh',
             }
-        )
 
-        # Prepare the transaction parameters
-        sslcz.set_urls(
-            success_url=request.build_absolute_uri(reverse('payment-success')),
-            fail_url=request.build_absolute_uri(reverse('payment-failure')),
-            cancel_url=request.build_absolute_uri(reverse('payment-failure')),
-            ipn_url=request.build_absolute_uri(reverse('payment-ipn'))
-        )
-
-        sslcz.set_product_integration(
-            total_amount=Decimal(amount),
-            currency='BDT',
-            product_category='Deposit',
-            product_name='Account Deposit',
-            num_of_item=1,
-            shipping_method='No',
-            product_profile='general'
-        )
-
-        sslcz.set_customer_info(
-            name=customer.user.get_full_name(),
-            email=customer.user.email,
-            address1="Dhaka, Bangladesh",
-            city="Dhaka",
-            postcode="1200",
-            country="Bangladesh",
-            phone=customer.mobile_no
-        )
-
-        # Initiate payment and get response
-        response = sslcz.init_payment()
-        if response.get('status') == 'SUCCESS':
-            # Save the transaction ID for reference
-            deposit = Deposit.objects.create(
-                customer=customer,
-                amount=Decimal(amount),
-                transaction_id=response['sessionkey']
-            )
-            return Response({'GatewayPageURL': response['GatewayPageURL']}, status=status.HTTP_200_OK)
-
-        return Response({'error': 'Payment initiation failed'}, status=status.HTTP_400_BAD_REQUEST)
+            response = sslcz.createSession(post_body)
+            if response['status'] == 'SUCCESS':
+                return Response({'payment_url': response['GatewayPageURL']})
+            return Response({'error': 'Payment initiation failed'}, status=400)
+        return Response(serializer.errors, status=400)
 
 
 class PaymentSuccessView(APIView):
     def post(self, request):
-        transaction_id = request.data.get('tran_id')
-        deposit = get_object_or_404(Deposit, transaction_id=transaction_id)
-        deposit.save()  # Add amount to customer's balance upon success
-        return Response({'message': 'Payment successful', 'deposit': DepositSerializer(deposit).data},
-                        status=status.HTTP_200_OK)
+        serializer = PaymentStatusSerializer(data=request.data)
+        if serializer.is_valid():
+            sslcz = SSLCOMMERZ(settings.SSLCOMMERZ)
+            val_id = serializer.validated_data['val_id']
+            response = sslcz.validationTransactionOrder(val_id)
+
+            if response['status'] == 'VALID':
+                customer = Customer.objects.get(id=serializer.validated_data["customer_id"])
+                amount = Decimal(response['amount'])
+                Deposit.objects.create(customer=customer, amount=amount,
+                                       transaction_id=serializer.validated_data["tran_id"])
+                return Response({'status': 'Payment successful'})
+            return Response({'error': 'Payment validation failed'}, status=400)
+        return Response(serializer.errors, status=400)
 
 
 class PaymentFailureView(APIView):
     def post(self, request):
-        transaction_id = request.data.get('tran_id')
-        deposit = get_object_or_404(Deposit, transaction_id=transaction_id)
-        deposit.delete()  # Delete the failed deposit
-        return Response({'message': 'Payment failed'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': 'Payment failed'}, status=400)
+
+
+class PaymentCancelView(APIView):
+    def post(self, request):
+        return Response({'status': 'Payment was canceled'}, status=200)

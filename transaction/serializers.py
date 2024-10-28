@@ -245,3 +245,13 @@ class WithdrawalSerializer(serializers.ModelSerializer):
         validated_data['customer'] = customer
         return super().create(validated_data)
 
+
+
+class PaymentInitiateSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    customer_id = serializers.IntegerField()
+
+class PaymentStatusSerializer(serializers.Serializer):
+    tran_id = serializers.CharField(max_length=100)
+    val_id = serializers.CharField(max_length=100)
+    customer_id = serializers.IntegerField()

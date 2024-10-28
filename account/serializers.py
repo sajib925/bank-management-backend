@@ -29,3 +29,6 @@ class ManagerSerializer(serializers.ModelSerializer):
         user = self.context['request'].user
         doctor = models.Manager.objects.create(user=user, **validated_data)
         return doctor
+
+
+
