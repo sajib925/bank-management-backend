@@ -114,7 +114,6 @@ class LoanDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-
 class LoanApproveView(APIView):
     def post(self, request, pk):
         loan = get_object_or_404(Loan, pk=pk)
@@ -139,7 +138,6 @@ class LoanApproveView(APIView):
             return Response(LoanSerializer(loan).data)
 
         return Response({"amount_approved": "This field is required."}, status=status.HTTP_400_BAD_REQUEST)
-
 
 
 class LoanRejectView(APIView):
