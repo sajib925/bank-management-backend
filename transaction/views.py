@@ -2,8 +2,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import BalanceTransfer, Loan, Deposit, Withdrawal
-from .serializers import BalanceTransferSerializer, LoanSerializer, DepositSerializer, WithdrawalSerializer, PaymentInitiateSerializer, PaymentStatusSerializer
-from django.shortcuts import get_object_or_404
+from .serializers import BalanceTransferSerializer, LoanSerializer, DepositSerializer, WithdrawalSerializer
+from django.shortcuts import get_object_or_404, redirect
 from account.models import Customer, Manager
 from rest_framework.permissions import IsAuthenticated
 from decimal import Decimal, InvalidOperation
@@ -13,8 +13,9 @@ from rest_framework.views import APIView
 from sslcommerz_lib import SSLCOMMERZ
 from django.conf import settings
 from decimal import Decimal
-from .models import Deposit, Customer
-
+from decimal import Decimal
+import random
+import string
 
 
 
@@ -176,41 +177,6 @@ class LoanRepayView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-
-
-class DepositCreateView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        user = request.user
-
-        # Check if the user is a manager
-        if hasattr(user, 'manager'):
-            # If the user is a manager, return all deposits with customer details
-            deposits = Deposit.objects.select_related('customer__user').all()
-        else:
-            # If the user is a customer, return only their deposits
-            customer = get_object_or_404(Customer, user=user)
-            deposits = Deposit.objects.filter(customer=customer)
-
-        serializer = DepositSerializer(deposits, many=True)
-        return Response(serializer.data)
-    def post(self, request):
-        serializer = DepositSerializer(data=request.data, context={'request': request})
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def post(self, request):
-        serializer = DepositSerializer(data=request.data, context={'request': request})
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-
 class WithdrawalCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -234,60 +200,122 @@ class WithdrawalCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class InitiatePaymentView(APIView):
-    def post(self, request):
-        serializer = PaymentInitiateSerializer(data=request.data)
-        if serializer.is_valid():
-            sslcz = SSLCOMMERZ(settings.SSLCOMMERZ)
-            amount = serializer.validated_data['amount']
-            customer_id = serializer.validated_data['customer_id']
-            customer = Customer.objects.get(id=customer_id)
+# class DepositCreateView(APIView):
+#     permission_classes = [IsAuthenticated]
+#
+#     def get(self, request):
+#         user = request.user
+#
+#         # Check if the user is a manager
+#         if hasattr(user, 'manager'):
+#             # If the user is a manager, return all deposits with customer details
+#             deposits = Deposit.objects.select_related('customer__user').all()
+#         else:
+#             # If the user is a customer, return only their deposits
+#             customer = get_object_or_404(Customer, user=user)
+#             deposits = Deposit.objects.filter(customer=customer)
+#
+#         serializer = DepositSerializer(deposits, many=True)
+#         return Response(serializer.data)
+#
+#     def post(self, request):
+#         serializer = DepositSerializer(data=request.data, context={'request': request})
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response(serializer.data, status=status.HTTP_201_CREATED)
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+# Generate transaction ID
+def generate_transaction_id(size=10, chars=string.ascii_uppercase + string.digits):
+    return ''.join(random.choice(chars) for _ in range(size))
+
+class DepositCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if hasattr(user, 'manager'):
+            deposits = Deposit.objects.select_related('customer__user').all()
+        else:
+            customer = get_object_or_404(Customer, user=user)
+            deposits = Deposit.objects.filter(customer=customer)
+        serializer = DepositSerializer(deposits, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = DepositSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            amount = serializer.validated_data['amount']
+            transaction_id = generate_transaction_id()
+
+            # SSLCommerz settings
+            store_id = 'your_store_id'
+            store_pass = 'your_store_pass'
+            settings = {'store_id': store_id, 'store_pass': store_pass, 'issandbox': True}
+            sslcommerz = SSLCOMMERZ(settings)
+
+            # Prepare post body for SSLCommerz
             post_body = {
                 'total_amount': amount,
-                'currency': 'BDT',
-                'tran_id': f'trans_{customer_id}_{amount}',  # Unique transaction ID
-                'success_url': settings.SSLCOMMERZ_SUCCESS_URL,
-                'fail_url': settings.SSLCOMMERZ_FAIL_URL,
-                'cancel_url': settings.SSLCOMMERZ_CANCEL_URL,
-                'cus_name': customer.user.username,
-                'cus_email': customer.user.email,
-                'cus_phone': customer.phone_number,
-                'cus_add1': "Dhaka Bangladesh",
-                'cus_city': "Dhaka",
+                'currency': "BDT",
+                'tran_id': transaction_id,
+                'success_url': request.build_absolute_uri(reverse('deposit_complete', args=[transaction_id])),
+                'fail_url': request.build_absolute_uri(reverse('deposit_fail', args=[transaction_id])),
+                'cancel_url': request.build_absolute_uri(reverse('deposit_cancel', args=[transaction_id])),
+                'emi_option': 0,
+                'cus_email': request.user.email,
+                'cus_phone': '01740786762',
+                'cus_add1': 'Dhaka',
+                'cus_city': 'Dhaka',
                 'cus_country': 'Bangladesh',
+                'shipping_method': "NO",
+                'product_name': "Deposit",
+                'product_category': "Financial",
+                'product_profile': "general",
             }
 
-            response = sslcz.createSession(post_body)
+            response = sslcommerz.createSession(post_body)
             if response['status'] == 'SUCCESS':
-                return Response({'payment_url': response['GatewayPageURL']})
-            return Response({'error': 'Payment initiation failed'}, status=400)
-        return Response(serializer.errors, status=400)
+                return redirect(response['GatewayPageURL'])
+            else:
+                return Response({"error": "Failed to initiate payment"}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PaymentSuccessView(APIView):
-    def post(self, request):
-        serializer = PaymentStatusSerializer(data=request.data)
-        if serializer.is_valid():
-            sslcz = SSLCOMMERZ(settings.SSLCOMMERZ)
-            val_id = serializer.validated_data['val_id']
-            response = sslcz.validationTransactionOrder(val_id)
+class DepositCompleteView(APIView):
+    def post(self, request, transaction_id):
+        payment_data = request.data
+        status_code = payment_data.get('status')
 
-            if response['status'] == 'VALID':
-                customer = Customer.objects.get(id=serializer.validated_data["customer_id"])
-                amount = Decimal(response['amount'])
-                Deposit.objects.create(customer=customer, amount=amount,
-                                       transaction_id=serializer.validated_data["tran_id"])
-                return Response({'status': 'Payment successful'})
-            return Response({'error': 'Payment validation failed'}, status=400)
-        return Response(serializer.errors, status=400)
+        if status_code == 'VALID':
+            user = request.user
+            customer = get_object_or_404(Customer, user=user)
+            amount = Decimal(payment_data.get('amount', 0))
+
+            # Save the deposit record if payment is valid
+            Deposit.objects.create(
+                customer=customer,
+                amount=amount,
+                transaction_id=transaction_id
+            )
+
+            return Response({"message": "Deposit successful"}, status=status.HTTP_200_OK)
+
+        elif status_code == 'FAILED':
+            return Response({"error": "Payment failed"}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"error": "Invalid request"}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PaymentFailureView(APIView):
-    def post(self, request):
-        return Response({'error': 'Payment failed'}, status=400)
+class DepositFailView(APIView):
+    def post(self, request, transaction_id):
+        # Handle payment failure case
+        return Response({"error": "Payment failed. Please try again or contact support."}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PaymentCancelView(APIView):
-    def post(self, request):
-        return Response({'status': 'Payment was canceled'}, status=200)
+class DepositCancelView(APIView):
+    def post(self, request, transaction_id):
+        # Handle payment cancellation case
+        return Response({"message": "Payment was canceled by the user."}, status=status.HTTP_200_OK)

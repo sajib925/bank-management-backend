@@ -113,73 +113,6 @@ class BalanceTransferSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-# class BalanceTransferSerializer(serializers.ModelSerializer):
-#     sender_name = serializers.SerializerMethodField()
-#     sender_email = serializers.SerializerMethodField()
-#     sender_mobile_no = serializers.SerializerMethodField()
-#
-#     recipient_name = serializers.SerializerMethodField()
-#     recipient_email = serializers.SerializerMethodField()
-#     recipient_mobile_no = serializers.SerializerMethodField()
-#
-#     class Meta:
-#         model = BalanceTransfer
-#         fields = '__all__'
-#         read_only_fields = ['sender']  # Ensure 'sender' is read-only to the client
-#
-#     def get_sender_name(self, obj):
-#         return obj.sender.user.get_full_name() if obj.sender else None
-#
-#     def get_sender_email(self, obj):
-#         return obj.sender.user.email if obj.sender else None
-#
-#     def get_sender_mobile_no(self, obj):
-#         return obj.sender.mobile_no if obj.sender else None
-#
-#     def get_recipient_name(self, obj):
-#         try:
-#             recipient = Customer.objects.get(account_no=obj.recipient_account_no)
-#             return recipient.user.get_full_name()
-#         except Customer.DoesNotExist:
-#             return "Unknown Recipient"
-#
-#     def get_recipient_email(self, obj):
-#         try:
-#             recipient = Customer.objects.get(account_no=obj.recipient_account_no)
-#             return recipient.user.email
-#         except Customer.DoesNotExist:
-#             return "Unknown Recipient Email"
-#
-#     def get_recipient_mobile_no(self, obj):
-#         try:
-#             recipient = Customer.objects.get(account_no=obj.recipient_account_no)
-#             return recipient.mobile_no
-#         except Customer.DoesNotExist:
-#             return "Unknown Recipient Mobile No"
-#
-#     def create(self, validated_data):
-#         sender = self.context['request'].user.customer  # Automatically set the sender
-#         validated_data['sender'] = sender
-#
-#         # Ensure the sender has enough balance
-#         if Decimal(sender.balance) < validated_data['amount']:
-#             raise serializers.ValidationError("Insufficient balance")
-#
-#         # Deduct the amount from sender's balance
-#         sender.balance = str(Decimal(sender.balance) - validated_data['amount'])
-#         sender.save()
-#
-#         # Find the recipient by account number and add the amount to their balance
-#         try:
-#             recipient = Customer.objects.get(account_no=validated_data['recipient_account_no'])
-#             recipient.balance = str(Decimal(recipient.balance) + validated_data['amount'])
-#             recipient.save()
-#         except Customer.DoesNotExist:
-#             raise serializers.ValidationError("Recipient account number not found")
-#
-#         return super().create(validated_data)
-
-
 
 class LoanSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.user.get_full_name', read_only=True)
@@ -200,29 +133,6 @@ class LoanSerializer(serializers.ModelSerializer):
         customer = self.context['request'].user.customer
         validated_data['customer'] = customer
         return super().create(validated_data)
-
-
-
-
-class DepositSerializer(serializers.ModelSerializer):
-    # Add customer details
-    customer_name = serializers.CharField(source='customer.user.get_full_name', read_only=True)
-    customer_email = serializers.EmailField(source='customer.user.email', read_only=True)
-    customer_mobile_no = serializers.CharField(source='customer.mobile_no', read_only=True)
-    customer_account_no = serializers.CharField(source='customer.account_no', read_only=True)
-    customer_account_type = serializers.CharField(source='customer.account_type', read_only=True)
-    customer_image = serializers.CharField(source='customer.image', read_only=True)
-
-    class Meta:
-        model = Deposit
-        fields = ['id', 'amount', 'timestamp', 'customer_name', 'customer_email', 'customer_mobile_no', 'customer_account_type', 'customer_image', 'customer_account_no']
-        read_only_fields = ['customer']
-
-    def create(self, validated_data):
-        customer = self.context['request'].user.customer
-        validated_data['customer'] = customer
-        return super().create(validated_data)
-
 
 
 class WithdrawalSerializer(serializers.ModelSerializer):
@@ -246,12 +156,22 @@ class WithdrawalSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
+class DepositSerializer(serializers.ModelSerializer):
+    # Add customer details
+    customer_name = serializers.CharField(source='customer.user.get_full_name', read_only=True)
+    customer_email = serializers.EmailField(source='customer.user.email', read_only=True)
+    customer_mobile_no = serializers.CharField(source='customer.mobile_no', read_only=True)
+    customer_account_no = serializers.CharField(source='customer.account_no', read_only=True)
+    customer_account_type = serializers.CharField(source='customer.account_type', read_only=True)
+    customer_image = serializers.CharField(source='customer.image', read_only=True)
 
-class PaymentInitiateSerializer(serializers.Serializer):
-    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
-    customer_id = serializers.IntegerField()
+    class Meta:
+        model = Deposit
+        fields = ['id', 'amount', 'timestamp', 'customer_name', 'customer_email', 'customer_mobile_no', 'customer_account_type', 'customer_image', 'customer_account_no']
+        read_only_fields = ['customer']
 
-class PaymentStatusSerializer(serializers.Serializer):
-    tran_id = serializers.CharField(max_length=100)
-    val_id = serializers.CharField(max_length=100)
-    customer_id = serializers.IntegerField()
+    def create(self, validated_data):
+        customer = self.context['request'].user.customer
+        validated_data['customer'] = customer
+        return super().create(validated_data)
+

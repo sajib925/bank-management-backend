@@ -118,6 +118,28 @@ class Loan(models.Model):
 
 
 
+class Withdrawal(models.Model):
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
+    # manager = models.ForeignKey(Manager, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Withdrawal by {self.customer.user.username} - {self.amount}"
+
+    def save(self, *args, **kwargs):
+        # Ensure the customer has enough balance
+        if Decimal(self.customer.balance) < self.amount:
+            raise ValueError("Insufficient balance")
+
+        # Subtract the withdrawal amount from the customer's balance
+        self.customer.balance = str(Decimal(self.customer.balance) - self.amount)
+        self.customer.save()
+        super().save(*args, **kwargs)
+
+
+
+
 # class Deposit(models.Model):
 #     customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
 #     # manager = models.ForeignKey(Manager, on_delete=models.CASCADE)
@@ -139,30 +161,11 @@ class Deposit(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     transaction_id = models.CharField(max_length=100, blank=True, null=True)
 
-    def __str__(self):
-        return f"Deposit by {self.customer.user.username} - {self.amount}"
-
     def save(self, *args, **kwargs):
-        if not self.transaction_id:  # Only add balance if it's a new transaction
+        if not self.transaction_id:
             self.customer.balance = str(Decimal(self.customer.balance) + self.amount)
             self.customer.save()
         super().save(*args, **kwargs)
 
-class Withdrawal(models.Model):
-    customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
-    # manager = models.ForeignKey(Manager, on_delete=models.CASCADE)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    timestamp = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
-        return f"Withdrawal by {self.customer.user.username} - {self.amount}"
 
-    def save(self, *args, **kwargs):
-        # Ensure the customer has enough balance
-        if Decimal(self.customer.balance) < self.amount:
-            raise ValueError("Insufficient balance")
-
-        # Subtract the withdrawal amount from the customer's balance
-        self.customer.balance = str(Decimal(self.customer.balance) - self.amount)
-        self.customer.save()
-        super().save(*args, **kwargs)
