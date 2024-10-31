@@ -140,22 +140,37 @@ class Withdrawal(models.Model):
 
 
 
+# class Deposit(models.Model):
+#     customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
+#     # manager = models.ForeignKey(Manager, on_delete=models.CASCADE)
+#     amount = models.DecimalField(max_digits=10, decimal_places=2)
+#     timestamp = models.DateTimeField(auto_now_add=True)
+#
+#     def __str__(self):
+#         return f"Deposit by {self.customer.user.username} - {self.amount}"
+#
+#     def save(self, *args, **kwargs):
+#         # Add the deposit amount to the customer's balance
+#         self.customer.balance = str(Decimal(self.customer.balance) + self.amount)
+#         self.customer.save()
+#         super().save(*args, **kwargs)
+
+
 class Deposit(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
-    # manager = models.ForeignKey(Manager, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     timestamp = models.DateTimeField(auto_now_add=True)
+    transaction_id = models.CharField(max_length=255, unique=True, null=True)
+    status = models.CharField(max_length=20, default='pending')  # Track the status of the deposit
 
     def __str__(self):
         return f"Deposit by {self.customer.user.username} - {self.amount}"
 
     def save(self, *args, **kwargs):
-        # Add the deposit amount to the customer's balance
-        self.customer.balance = str(Decimal(self.customer.balance) + self.amount)
-        self.customer.save()
-        super().save(*args, **kwargs)
-
-
-
+        super().save(*args, **kwargs)  # Save the deposit instance first
+        if self.status == 'completed':
+            # Only update the balance if the status is completed
+            self.customer.balance = str(Decimal(self.customer.balance) + self.amount)
+            self.customer.save()
 
 

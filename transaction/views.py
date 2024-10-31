@@ -1,5 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
 from .models import BalanceTransfer, Loan, Deposit, Withdrawal
 from .serializers import BalanceTransferSerializer, LoanSerializer, DepositSerializer, WithdrawalSerializer
@@ -14,6 +15,7 @@ from sslcommerz_lib import SSLCOMMERZ
 from django.conf import settings
 from decimal import Decimal
 from libs.payment_request import payment_request
+from libs.auto_transaction_id_generate import generate_transaction_id
 
 
 
@@ -222,23 +224,71 @@ class DepositCreateView(APIView):
 
     # with payment gateway
 
+    # def post(self, request):
+    #     # Get the customer associated with the logged-in user
+    #     customer = self.request.user.customer
+    #     serializer = DepositSerializer(data=request.data, context={'request': request})
+    #
+    #     if serializer.is_valid():
+    #         # Create a Deposit instance but do not save yet
+    #         deposit = serializer.save(customer=customer)
+    #         url = payment_request(deposit.amount, self.request.user)
+    #
+    #         # Return the response with the updated balance and payment URL
+    #         return Response({
+    #             'balance': customer.balance,
+    #             'payment_url': url
+    #         }, status=status.HTTP_201_CREATED)
+    #
+    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     def post(self, request):
-        # Get the customer associated with the logged-in user
-        customer = self.request.user.customer
+        customer = request.user.customer
         serializer = DepositSerializer(data=request.data, context={'request': request})
 
         if serializer.is_valid():
-            # Create a Deposit instance but do not save yet
+            # Create a Deposit instance
             deposit = serializer.save(customer=customer)
-            url = payment_request(deposit.amount, self.request.user)
+            deposit.transaction_id = generate_transaction_id()  # Generate and set the transaction ID
+            deposit.save()  # Save the deposit instance to the database
 
-            # Return the response with the updated balance and payment URL
+            # Now initiate the payment request
+            payment_url = payment_request(deposit.amount, request.user, deposit)
+
+            # Return the response with the payment URL
             return Response({
                 'balance': customer.balance,
-                'payment_url': url
+                'payment_url': payment_url
             }, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 
+class SSLCommerzCallbackView(APIView):
+    @csrf_exempt
+    def post(self, request):
+        data = request.data
+
+        # Extract transaction ID and payment status from the SSLCommerz response
+        transaction_id = data.get('tran_id')
+        status = data.get('status')
+
+        try:
+            # Retrieve the deposit instance associated with the transaction ID
+            deposit = Deposit.objects.get(transaction_id=transaction_id)
+
+            if status == 'success':
+                # Update the deposit status to completed
+                deposit.status = 'completed'
+                deposit.save()
+
+                return JsonResponse({'message': 'Payment successful, balance updated.'}, status=200)
+
+            else:
+                # Handle failure or cancellation
+                deposit.status = 'failed' if status == 'fail' else 'cancelled'
+                deposit.save()  # Save the status update
+                return JsonResponse({'message': 'Payment failed or cancelled, no balance updated.'}, status=400)
+
+        except Deposit.DoesNotExist:
+            return JsonResponse({'message': 'Transaction not found.'}, status=404)

@@ -156,8 +156,27 @@ class WithdrawalSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
+# class DepositSerializer(serializers.ModelSerializer):
+#     # Add customer details
+#     customer_name = serializers.CharField(source='customer.user.get_full_name', read_only=True)
+#     customer_email = serializers.EmailField(source='customer.user.email', read_only=True)
+#     customer_mobile_no = serializers.CharField(source='customer.mobile_no', read_only=True)
+#     customer_account_no = serializers.CharField(source='customer.account_no', read_only=True)
+#     customer_account_type = serializers.CharField(source='customer.account_type', read_only=True)
+#     customer_image = serializers.CharField(source='customer.image', read_only=True)
+#
+#     class Meta:
+#         model = Deposit
+#         fields = ['id', 'amount', 'timestamp', 'customer_name', 'customer_email', 'customer_mobile_no', 'customer_account_type', 'customer_image', 'customer_account_no']
+#         read_only_fields = ['customer']
+#
+#     def create(self, validated_data):
+#         customer = self.context['request'].user.customer
+#         validated_data['customer'] = customer
+#         return super().create(validated_data)
+
 class DepositSerializer(serializers.ModelSerializer):
-    # Add customer details
+    # Add customer details as read-only fields
     customer_name = serializers.CharField(source='customer.user.get_full_name', read_only=True)
     customer_email = serializers.EmailField(source='customer.user.email', read_only=True)
     customer_mobile_no = serializers.CharField(source='customer.mobile_no', read_only=True)
@@ -167,11 +186,21 @@ class DepositSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Deposit
-        fields = ['id', 'amount', 'timestamp', 'customer_name', 'customer_email', 'customer_mobile_no', 'customer_account_type', 'customer_image', 'customer_account_no']
-        read_only_fields = ['customer']
+        fields = [
+            'id',
+            'amount',
+            'timestamp',
+            'customer_name',
+            'customer_email',
+            'customer_mobile_no',
+            'customer_account_no',
+            'customer_account_type',
+            'customer_image'
+        ]
+        read_only_fields = ['customer', 'timestamp']  # timestamp should also be read-only
 
     def create(self, validated_data):
+        # Automatically set the customer from the request context
         customer = self.context['request'].user.customer
         validated_data['customer'] = customer
         return super().create(validated_data)
-
