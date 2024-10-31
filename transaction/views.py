@@ -13,9 +13,7 @@ from rest_framework.views import APIView
 from sslcommerz_lib import SSLCOMMERZ
 from django.conf import settings
 from decimal import Decimal
-from django.urls import reverse
-import random
-import string
+from libs.payment_request import payment_request
 
 
 
