@@ -153,12 +153,7 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# sslcommerz
 
-SSLCOMMERZ = {
-    'store_id': 'own671f4d7ec684f',
-    'store_pass': 'own671f4d7ec684f@ssl',
-}
 
 
 # Default primary key field type

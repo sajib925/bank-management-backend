@@ -200,122 +200,49 @@ class WithdrawalCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# class DepositCreateView(APIView):
-#     permission_classes = [IsAuthenticated]
-#
-#     def get(self, request):
-#         user = request.user
-#
-#         # Check if the user is a manager
-#         if hasattr(user, 'manager'):
-#             # If the user is a manager, return all deposits with customer details
-#             deposits = Deposit.objects.select_related('customer__user').all()
-#         else:
-#             # If the user is a customer, return only their deposits
-#             customer = get_object_or_404(Customer, user=user)
-#             deposits = Deposit.objects.filter(customer=customer)
-#
-#         serializer = DepositSerializer(deposits, many=True)
-#         return Response(serializer.data)
-#
-#     def post(self, request):
-#         serializer = DepositSerializer(data=request.data, context={'request': request})
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response(serializer.data, status=status.HTTP_201_CREATED)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-# Generate transaction ID
-def generate_transaction_id(size=10, chars=string.ascii_uppercase + string.digits):
-    return ''.join(random.choice(chars) for _ in range(size))
-
 class DepositCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
+
         if hasattr(user, 'manager'):
             deposits = Deposit.objects.select_related('customer__user').all()
         else:
             customer = get_object_or_404(Customer, user=user)
             deposits = Deposit.objects.filter(customer=customer)
+
         serializer = DepositSerializer(deposits, many=True)
         return Response(serializer.data)
 
+    # without payment gateway
+
+    # def post(self, request):
+    #     serializer = DepositSerializer(data=request.data, context={'request': request})
+    #     if serializer.is_valid():
+    #         serializer.save()
+    #         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # with payment gateway
+
     def post(self, request):
+        # Get the customer associated with the logged-in user
+        customer = self.request.user.customer
         serializer = DepositSerializer(data=request.data, context={'request': request})
+
         if serializer.is_valid():
-            amount = serializer.validated_data['amount']
-            transaction_id = generate_transaction_id()
+            # Create a Deposit instance but do not save yet
+            deposit = serializer.save(customer=customer)
+            url = payment_request(deposit.amount, self.request.user)
 
-            # SSLCommerz settings
-            store_id = 'your_store_id'
-            store_pass = 'your_store_pass'
-            settings = {'store_id': store_id, 'store_pass': store_pass, 'issandbox': True}
-            sslcommerz = SSLCOMMERZ(settings)
-
-            # Prepare post body for SSLCommerz
-            post_body = {
-                'total_amount': amount,
-                'currency': "BDT",
-                'tran_id': transaction_id,
-                'success_url': request.build_absolute_uri(reverse('deposit_complete', args=[transaction_id])),
-                'fail_url': request.build_absolute_uri(reverse('deposit_fail', args=[transaction_id])),
-                'cancel_url': request.build_absolute_uri(reverse('deposit_cancel', args=[transaction_id])),
-                'emi_option': 0,
-                'cus_email': request.user.email,
-                'cus_phone': '01740786762',
-                'cus_add1': 'Dhaka',
-                'cus_city': 'Dhaka',
-                'cus_country': 'Bangladesh',
-                'shipping_method': "NO",
-                'product_name': "Deposit",
-                'product_category': "Financial",
-                'product_profile': "general",
-            }
-
-            response = sslcommerz.createSession(post_body)
-            if response['status'] == 'SUCCESS':
-                return redirect(response['GatewayPageURL'])
-            else:
-                return Response({"error": "Failed to initiate payment"}, status=status.HTTP_400_BAD_REQUEST)
+            # Return the response with the updated balance and payment URL
+            return Response({
+                'balance': customer.balance,
+                'payment_url': url
+            }, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class DepositCompleteView(APIView):
-    def post(self, request, transaction_id):
-        payment_data = request.data
-        status_code = payment_data.get('status')
 
-        if status_code == 'VALID':
-            user = request.user
-            customer = get_object_or_404(Customer, user=user)
-            amount = Decimal(payment_data.get('amount', 0))
-
-            # Save the deposit record if payment is valid
-            Deposit.objects.create(
-                customer=customer,
-                amount=amount,
-                transaction_id=transaction_id
-            )
-
-            return Response({"message": "Deposit successful"}, status=status.HTTP_200_OK)
-
-        elif status_code == 'FAILED':
-            return Response({"error": "Payment failed"}, status=status.HTTP_400_BAD_REQUEST)
-
-        return Response({"error": "Invalid request"}, status=status.HTTP_400_BAD_REQUEST)
-
-
-class DepositFailView(APIView):
-    def post(self, request, transaction_id):
-        # Handle payment failure case
-        return Response({"error": "Payment failed. Please try again or contact support."}, status=status.HTTP_400_BAD_REQUEST)
-
-
-class DepositCancelView(APIView):
-    def post(self, request, transaction_id):
-        # Handle payment cancellation case
-        return Response({"message": "Payment was canceled by the user."}, status=status.HTTP_200_OK)

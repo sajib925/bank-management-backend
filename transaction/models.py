@@ -140,32 +140,22 @@ class Withdrawal(models.Model):
 
 
 
-# class Deposit(models.Model):
-#     customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
-#     # manager = models.ForeignKey(Manager, on_delete=models.CASCADE)
-#     amount = models.DecimalField(max_digits=10, decimal_places=2)
-#     timestamp = models.DateTimeField(auto_now_add=True)
-#
-#     def __str__(self):
-#         return f"Deposit by {self.customer.user.username} - {self.amount}"
-#
-#     def save(self, *args, **kwargs):
-#         # Add the deposit amount to the customer's balance
-#         self.customer.balance = str(Decimal(self.customer.balance) + self.amount)
-#         self.customer.save()
-#         super().save(*args, **kwargs)
-
 class Deposit(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
+    # manager = models.ForeignKey(Manager, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     timestamp = models.DateTimeField(auto_now_add=True)
-    transaction_id = models.CharField(max_length=100, blank=True, null=True)
+
+    def __str__(self):
+        return f"Deposit by {self.customer.user.username} - {self.amount}"
 
     def save(self, *args, **kwargs):
-        if not self.transaction_id:
-            self.customer.balance = str(Decimal(self.customer.balance) + self.amount)
-            self.customer.save()
+        # Add the deposit amount to the customer's balance
+        self.customer.balance = str(Decimal(self.customer.balance) + self.amount)
+        self.customer.save()
         super().save(*args, **kwargs)
+
+
 
 
 
