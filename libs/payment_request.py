@@ -10,9 +10,9 @@ def payment_request(amount, user):
     post_body['total_amount'] = amount
     post_body['currency'] = "BDT"
     post_body['tran_id'] = generate_transaction_id()
-    post_body['success_url'] = f"{backend_link}/transaction"
-    post_body['fail_url'] = f"{backend_link}/fail"
-    post_body['cancel_url'] = f"{backend_link}/cancel"
+    post_body['success_url'] = f"{backend_link}/api/transactions/deposit/success/"
+    post_body['fail_url'] = f"{backend_link}/api/transactions/deposit/failed/"
+    post_body['cancel_url'] = f"{backend_link}/api/transactions/deposit/cancelled/"
     post_body['emi_option'] = 0
     post_body['cus_name'] = user.username
     post_body['cus_email'] = user.email
