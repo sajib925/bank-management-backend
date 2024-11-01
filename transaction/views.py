@@ -1,5 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from django.http import HttpResponseRedirect
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
 from .models import BalanceTransfer, Loan, Deposit, Withdrawal
@@ -269,8 +270,17 @@ class DepositCreateView(APIView):
 
 class DepositSuccess(APIView):
     def post(self, request, *args, **kwargs):
-        user_id = int(request.data.get('value_a', 0))  # Convert directly to integer
-        amount = float(request.data.get('amount', 0))  # Convert directly to float
+        user_id_str = request.data.get('value_a', '')
+
+        if not user_id_str:  # Check if user_id is an empty string
+            return Response({"error": "User ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user_id = int(user_id_str)  # Convert to integer safely
+        except ValueError:
+            return Response({"error": "Invalid User ID."}, status=status.HTTP_400_BAD_REQUEST)
+
+        amount = float(request.data.get('amount', 0))  # Ensure you parse the amount correctly
         tran_id = request.data.get('tran_id')
 
         # Safely retrieve the user and associated customer
@@ -285,7 +295,6 @@ class DepositSuccess(APIView):
         deposit = Deposit(customer=customer, amount=amount)
         deposit.save()  # Save the deposit record in the database
 
-        # Redirect to the frontend with a success message
         return HttpResponseRedirect(f'{frontend_link}/deposit?status=success')
 
 
