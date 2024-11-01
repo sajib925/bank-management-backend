@@ -156,21 +156,51 @@ class Withdrawal(models.Model):
 #         super().save(*args, **kwargs)
 
 
+# class Deposit(models.Model):
+#     customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
+#     amount = models.DecimalField(max_digits=10, decimal_places=2)
+#     timestamp = models.DateTimeField(auto_now_add=True)
+#     transaction_id = models.CharField(max_length=255, unique=True, null=True)
+#     status = models.CharField(max_length=20, default='pending')  # Track the status of the deposit
+#
+#     def __str__(self):
+#         return f"Deposit by {self.customer.user.username} - {self.amount}"
+#
+#     def save(self, *args, **kwargs):
+#         super().save(*args, **kwargs)  # Save the deposit instance first
+#         if self.status == 'completed':
+#             # Only update the balance if the status is completed
+#             self.customer.balance = str(Decimal(self.customer.balance) + self.amount)
+#             self.customer.save()
+
 class Deposit(models.Model):
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('COMPLETED', 'Completed'),
+        ('FAILED', 'Failed'),
+    ]
+
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     timestamp = models.DateTimeField(auto_now_add=True)
-    transaction_id = models.CharField(max_length=255, unique=True, null=True)
-    status = models.CharField(max_length=20, default='pending')  # Track the status of the deposit
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
 
     def __str__(self):
-        return f"Deposit by {self.customer.user.username} - {self.amount}"
+        return f"Deposit by {self.customer.user.username} - {self.amount} ({self.status})"
 
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)  # Save the deposit instance first
-        if self.status == 'completed':
-            # Only update the balance if the status is completed
+    def complete_deposit(self):
+        """
+        This method finalizes the deposit by updating the customer's balance if the status is 'COMPLETED'.
+        """
+        if self.status == 'COMPLETED':
             self.customer.balance = str(Decimal(self.customer.balance) + self.amount)
             self.customer.save()
+            super().save()
 
+    def save(self, *args, **kwargs):
+        # Override save to prevent balance updates if status is not 'COMPLETED'
+        if self.status == 'COMPLETED':
+            self.complete_deposit()
+        else:
+            super().save(*args, **kwargs)
 
