@@ -246,10 +246,31 @@ class DepositCreateView(APIView):
 
 
 
+# class DepositSuccess(APIView):
+#     def post(self, request, *args, **kwargs):
+#         user_id = request.data.get('value_a')
+#         amount = float(request.data.get('amount'))  # Ensure you parse the amount correctly
+#         tran_id = request.data.get('tran_id')
+#
+#         # Safely retrieve the user and associated customer
+#         user = get_object_or_404(User, id=user_id)
+#         customer = get_object_or_404(Customer, user=user)
+#
+#         # Update the customer's balance
+#         customer.balance = str(Decimal(customer.balance) + Decimal(amount))
+#         customer.save(update_fields=['balance'])
+#
+#         # Create a Deposit instance
+#         deposit = Deposit(customer=customer, amount=amount)
+#         deposit.save()  # Save the deposit record in the database
+#
+#
+#         return HttpResponseRedirect(f'{frontend_link}/deposit?status=success')
+
 class DepositSuccess(APIView):
     def post(self, request, *args, **kwargs):
-        user_id = request.data.get('value_a')
-        amount = float(request.data.get('amount'))  # Ensure you parse the amount correctly
+        user_id = int(request.data.get('value_a', 0))  # Convert directly to integer
+        amount = float(request.data.get('amount', 0))  # Convert directly to float
         tran_id = request.data.get('tran_id')
 
         # Safely retrieve the user and associated customer
@@ -264,7 +285,7 @@ class DepositSuccess(APIView):
         deposit = Deposit(customer=customer, amount=amount)
         deposit.save()  # Save the deposit record in the database
 
-
+        # Redirect to the frontend with a success message
         return HttpResponseRedirect(f'{frontend_link}/deposit?status=success')
 
 
