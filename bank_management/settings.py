@@ -97,12 +97,18 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'bank_management.wsgi.application'
 
+# REST_FRAMEWORK = {
+#     'DEFAULT_AUTHENTICATION_CLASSES': (
+#         'rest_framework.authentication.TokenAuthentication',
+#     ),
+# }
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.TokenAuthentication',
     ),
 }
-
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases

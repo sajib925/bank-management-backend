@@ -174,34 +174,22 @@ class Withdrawal(models.Model):
 #             self.customer.save()
 
 class Deposit(models.Model):
-    STATUS_CHOICES = [
-        ('PENDING', 'Pending'),
-        ('COMPLETED', 'Completed'),
-        ('FAILED', 'Failed'),
-    ]
-
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     timestamp = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
     transaction_id = models.CharField(max_length=255, unique=True, null=True)
+    status = models.CharField(max_length=20, default='pending')  # Track the status of the deposit
 
     def __str__(self):
-        return f"Deposit by {self.customer.user.username} - {self.amount} ({self.status})"
-
-    def complete_deposit(self):
-        """
-        Finalizes the deposit by updating the customer's balance if the status is 'COMPLETED'.
-        """
-        if self.status == 'COMPLETED':
-            self.customer.balance = str(Decimal(self.customer.balance) + self.amount)
-            self.customer.save()
-            super().save()
+        return f"Deposit by {self.customer.user.username} - {self.amount}"
 
     def save(self, *args, **kwargs):
-        # Override save to prevent balance updates if status is not 'COMPLETED'
-        if self.status == 'COMPLETED':
-            self.complete_deposit()
-        else:
-            super().save(*args, **kwargs)
+        # Check if the status has changed to 'completed' and update the balance only then
+        if self.pk is not None:
+            previous = Deposit.objects.get(pk=self.pk)
+            if previous.status != 'completed' and self.status == 'completed':
+                # Only update the balance if the status changes to 'completed'
+                self.customer.balance = str(Decimal(self.customer.balance) + self.amount)
+                self.customer.save()
+        super().save(*args, **kwargs)  # Save the deposit instance
 
