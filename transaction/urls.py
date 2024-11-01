@@ -7,7 +7,10 @@ from .views import (
     LoanRejectView,
     LoanRepayView,
     DepositCreateView,
-    WithdrawalCreateView
+    WithdrawalCreateView,
+    DepositSuccess,
+    DepositFailed,
+    DepositCancelled
 )
 
 urlpatterns = [
@@ -19,4 +22,7 @@ urlpatterns = [
     path('loans/<int:pk>/repay/', LoanRepayView.as_view(), name='loan-repay'),
     path('deposit/', DepositCreateView.as_view(), name='deposit-create'),
     path('withdrawal/', WithdrawalCreateView.as_view(), name='withdrawal-create'),
+    path('deposit/success/', DepositSuccess.as_view(), name='deposit_success'),
+    path('deposit/failed/', DepositFailed.as_view(), name='deposit_failed'),
+    path('deposit/cancelled/', DepositCancelled.as_view(), name='deposit_cancelled'),
 ]

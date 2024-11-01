@@ -16,7 +16,7 @@ from django.conf import settings
 from decimal import Decimal
 from libs.payment_request import payment_request
 from libs.auto_transaction_id_generate import generate_transaction_id
-import logging
+from libs.live_link import frontend_link
 
 
 class BalanceTransferCreateView(APIView):
@@ -245,6 +245,32 @@ class DepositCreateView(APIView):
 
 
 
+class DepositSuccess(APIView):
+    def post(self, request, *args, **kwargs):
+        user_id = request.data.get('value_a')
+        amount = float(request.data.get('amount'))  # Ensure you parse the amount correctly
+        tran_id = request.data.get('tran_id')
+
+        # Safely retrieve the user and associated customer
+        user = get_object_or_404(User, id=user_id)
+        customer = get_object_or_404(Customer, user=user)
+
+        # Update the customer's balance
+        customer.balance = str(Decimal(customer.balance) + Decimal(amount))
+        customer.save(update_fields=['balance'])
+
+        # Create a Deposit instance
+        deposit = Deposit(customer=customer, amount=amount)
+        deposit.save()  # Save the deposit record in the database
 
 
+        return HttpResponseRedirect(f'{frontend_link}/deposit?status=success')
 
+
+class DepositFailed(APIView):
+    def post(self, request, *args, **kwargs):
+        return HttpResponseRedirect(f'{frontend_link}/deposit?status=failed')
+
+class DepositCancelled(APIView):
+    def post(self, request, *args, **kwargs):
+        return HttpResponseRedirect(f'{frontend_link}/deposit?status=cancelled')
