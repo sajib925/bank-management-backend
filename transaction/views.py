@@ -247,17 +247,43 @@ class DepositCreateView(APIView):
 
 
 
+# class DepositSuccess(APIView):
+#     def post(self, request, *args, **kwargs):
+#         user_id = request.data.get('value_a')
+#         amount = float(request.data.get('amount'))
+#         tran_id = request.data.get('tran_id')
+#
+#         # Safely retrieve the user and associated customer
+#         user = get_object_or_404(User, id=user_id)
+#         customer = get_object_or_404(Customer, user=user)
+#
+#
+#         # Update the customer's balance
+#         customer.balance = str(Decimal(customer.balance) + Decimal(amount))
+#         customer.save(update_fields=['balance'])
+#
+#         # Create a Deposit instance
+#         deposit = Deposit(customer=customer, amount=amount)
+#         deposit.save()  # Save the deposit record in the database
+#
+#
+#         return HttpResponseRedirect(f'{frontend_link}/transaction?status=success')
 class DepositSuccess(APIView):
+    permission_classes = [IsAuthenticated]  # Restrict access to authenticated users
+
     def post(self, request, *args, **kwargs):
-        # user_id = request.data.get('value_a')
-        amount = float(request.data.get('amount'))  # Ensure you parse the amount correctly
-        tran_id = request.data.get('tran_id')
+        # Check if the user is authenticated
+        if not request.user.is_authenticated:
+            return Response({'error': 'User not authenticated'}, status=401)
 
-        # Safely retrieve the user and associated customer
-        # user = get_object_or_404(User, id=user_id)
-        # customer = get_object_or_404(Customer, user=user)
-        customer = self.request.user.customer
+        user = request.user  # Get the authenticated user
 
+        # Try to get the associated Customer instance
+        customer = get_object_or_404(Customer, user=user)
+
+        # Extract data from request
+        amount = float(request.data.get('amount', 0))  # Default to 0 if not provided
+        tran_id = request.data.get('tran_id')  # Assuming tran_id is required
 
         # Update the customer's balance
         customer.balance = str(Decimal(customer.balance) + Decimal(amount))
@@ -267,8 +293,7 @@ class DepositSuccess(APIView):
         deposit = Deposit(customer=customer, amount=amount)
         deposit.save()  # Save the deposit record in the database
 
-
-        return HttpResponseRedirect(f'{frontend_link}/transaction?status=success')
+        return Response({'message': 'Deposit successful'}, status=200)
 
 
 
