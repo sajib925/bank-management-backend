@@ -7,7 +7,6 @@ from .views import (
     LoanRejectView,
     LoanRepayView,
     DepositCreateView,
-    SSLCommerzCallbackView,
     WithdrawalCreateView
 )
 
@@ -19,6 +18,5 @@ urlpatterns = [
     path('loans/<int:pk>/reject/', LoanRejectView.as_view(), name='loan-reject'),
     path('loans/<int:pk>/repay/', LoanRepayView.as_view(), name='loan-repay'),
     path('deposit/', DepositCreateView.as_view(), name='deposit-create'),
-    path('sslcommerz/callback/', SSLCommerzCallbackView.as_view(), name='sslcommerz_callback'),
     path('withdrawal/', WithdrawalCreateView.as_view(), name='withdrawal-create'),
 ]

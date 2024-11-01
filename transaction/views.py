@@ -224,100 +224,27 @@ class DepositCreateView(APIView):
 
     # with payment gateway
 
-    # def post(self, request):
-    #     # Get the customer associated with the logged-in user
-    #     customer = self.request.user.customer
-    #     serializer = DepositSerializer(data=request.data, context={'request': request})
-    #
-    #     if serializer.is_valid():
-    #         # Create a Deposit instance but do not save yet
-    #         deposit = serializer.save(customer=customer)
-    #         url = payment_request(deposit.amount, self.request.user)
-    #
-    #         # Return the response with the updated balance and payment URL
-    #         return Response({
-    #             'balance': customer.balance,
-    #             'payment_url': url
-    #         }, status=status.HTTP_201_CREATED)
-    #
-    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
     def post(self, request):
-        customer = request.user.customer
+        # Get the customer associated with the logged-in user
+        customer = self.request.user.customer
         serializer = DepositSerializer(data=request.data, context={'request': request})
 
         if serializer.is_valid():
-            # Create a Deposit instance
+            # Create a Deposit instance but do not save yet
             deposit = serializer.save(customer=customer)
-            deposit.transaction_id = generate_transaction_id()  # Generate and set the transaction ID
-            deposit.save()  # Save the deposit instance to the database
+            url = payment_request(deposit.amount, self.request.user)
 
-            # Now initiate the payment request
-            payment_url = payment_request(deposit.amount, request.user, deposit)
-
-            # Return the response with the payment URL
+            # Return the response with the updated balance and payment URL
             return Response({
                 'balance': customer.balance,
-                'payment_url': payment_url
+                'payment_url': url
             }, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 
-# class SSLCommerzCallbackView(APIView):
-#     @csrf_exempt
-#     def post(self, request):
-#         data = request.data
-#
-#         # Extract transaction ID and payment status from the SSLCommerz response
-#         transaction_id = data.get('tran_id')
-#         status = data.get('status')
-#
-#         try:
-#             # Retrieve the deposit instance associated with the transaction ID
-#             deposit = Deposit.objects.get(transaction_id=transaction_id)
-#
-#             if status == 'success':
-#                 # Update the deposit status to completed
-#                 deposit.status = 'completed'
-#                 deposit.save()
-#
-#                 return JsonResponse({'message': 'Payment successful, balance updated.'}, status=200)
-#
-#             else:
-#                 # Handle failure or cancellation
-#                 deposit.status = 'failed' if status == 'fail' else 'cancelled'
-#                 deposit.save()  # Save the status update
-#                 return JsonResponse({'message': 'Payment failed or cancelled, no balance updated.'}, status=400)
-#
-#         except Deposit.DoesNotExist:
-#             return JsonResponse({'message': 'Transaction not found.'}, status=404)
-
-logger = logging.getLogger(__name__)
 
 
-class SSLCommerzCallbackView(APIView):
-    @csrf_exempt
-    def post(self, request):
-        data = request.data
-        logger.info("Callback data received: %s", data)
 
-        transaction_id = data.get('tran_id')
-        status = data.get('status')
-        logger.info("Transaction ID: %s, Status: %s", transaction_id, status)
 
-        try:
-            deposit = Deposit.objects.get(transaction_id=transaction_id)
-
-            if status == 'success':
-                deposit.status = 'completed'
-                deposit.save()
-                return JsonResponse({'message': 'Payment successful, balance updated.'}, status=200)
-            else:
-                deposit.status = 'failed' if status == 'fail' else 'cancelled'
-                deposit.save()
-                return JsonResponse({'message': 'Payment failed or cancelled, no balance updated.'}, status=400)
-        except Deposit.DoesNotExist:
-            logger.error("Deposit with Transaction ID %s does not exist.", transaction_id)
-            return JsonResponse({'message': 'Transaction not found.'}, status=404)
