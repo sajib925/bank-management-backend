@@ -246,23 +246,23 @@ class DepositCreateView(APIView):
         serializer = DepositSerializer(data=request.data, context={'request': request})
 
         if serializer.is_valid():
-            # Create a pending Deposit instance but do not finalize it yet
+            # Create a pending Deposit instance with a unique transaction_id
             deposit = serializer.save(customer=customer, status='PENDING')
+            deposit.save()  # Save to ensure transaction_id is set
 
             # Initiate the payment request with the deposit instance
             url, payment_success = payment_request(deposit.amount, self.request.user, deposit)
 
-            # Update the deposit status and balance based on the payment result
+            # Update deposit status based on the payment result
             if payment_success:
                 deposit.status = 'COMPLETED'
-                deposit.complete_deposit()  # Update balance after successful payment
+                deposit.complete_deposit()  # Update balance on successful payment
                 deposit.save()
                 return Response({
                     'balance': customer.balance,
                     'payment_url': url
                 }, status=status.HTTP_201_CREATED)
             else:
-                # Mark deposit as failed and save without updating balance
                 deposit.status = 'FAILED'
                 deposit.save()
                 return Response({

@@ -184,13 +184,14 @@ class Deposit(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     timestamp = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
+    transaction_id = models.CharField(max_length=255, unique=True, null=True)
 
     def __str__(self):
         return f"Deposit by {self.customer.user.username} - {self.amount} ({self.status})"
 
     def complete_deposit(self):
         """
-        This method finalizes the deposit by updating the customer's balance if the status is 'COMPLETED'.
+        Finalizes the deposit by updating the customer's balance if the status is 'COMPLETED'.
         """
         if self.status == 'COMPLETED':
             self.customer.balance = str(Decimal(self.customer.balance) + self.amount)
