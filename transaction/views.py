@@ -232,71 +232,44 @@ class DepositCreateView(APIView):
         serializer = DepositSerializer(data=request.data, context={'request': request})
 
         if serializer.is_valid():
-            # Create a Deposit instance but do not save yet
             deposit = serializer.save(customer=customer)
             url = payment_request(deposit.amount, self.request.user)
 
-            # Return the response with the updated balance and payment URL
             return Response({
-                'balance': customer.balance,
+                # 'balance': customer.balance,
                 'payment_url': url
             }, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
-
-# class DepositSuccess(APIView):
-#     def post(self, request, *args, **kwargs):
-#         user_id = request.data.get('value_a')
-#         amount = float(request.data.get('amount'))
-#         tran_id = request.data.get('tran_id')
-#
-#         # Safely retrieve the user and associated customer
-#         user = get_object_or_404(User, id=user_id)
-#         customer = get_object_or_404(Customer, user=user)
-#
-#
-#         # Update the customer's balance
-#         customer.balance = str(Decimal(customer.balance) + Decimal(amount))
-#         customer.save(update_fields=['balance'])
-#
-#         # Create a Deposit instance
-#         deposit = Deposit(customer=customer, amount=amount)
-#         deposit.save()  # Save the deposit record in the database
-#
-#
-#         return HttpResponseRedirect(f'{frontend_link}/transaction?status=success')
 class DepositSuccess(APIView):
-    permission_classes = [IsAuthenticated]  # Restrict access to authenticated users
-
     def post(self, request, *args, **kwargs):
-        # Check if the user is authenticated
-        if not request.user.is_authenticated:
-            return Response({'error': 'User not authenticated'}, status=401)
+        try:
+            # Get the user ID from the request data and convert it to an integer
+            user_id = int(request.data.get('value_a'))
+            # Get the deposit amount and convert it to a Decimal
+            deposit_amount = Decimal(request.data.get('amount', 0))  # Default to 0 if not present
 
-        user = request.user  # Get the authenticated user
+            # Retrieve the user and customer objects
+            user = get_object_or_404(User, id=user_id)
+            customer = get_object_or_404(Customer, user=user)
 
-        # Try to get the associated Customer instance
-        customer = get_object_or_404(Customer, user=user)
+            # Update the customer's balance
+            current_balance = Decimal(customer.balance)
+            new_balance = current_balance + deposit_amount
+            customer.balance = str(new_balance)
 
-        # Extract data from request
-        amount = float(request.data.get('amount', 0))  # Default to 0 if not provided
-        tran_id = request.data.get('tran_id')  # Assuming tran_id is required
+            # Save the updated balance to the database
+            customer.save(update_fields=['balance'])
 
-        # Update the customer's balance
-        customer.balance = str(Decimal(customer.balance) + Decimal(amount))
-        customer.save(update_fields=['balance'])
+            # Redirect to the success URL
+            return HttpResponseRedirect(f'{frontend_link}/transaction?status=success')
 
-        # Create a Deposit instance
-        deposit = Deposit(customer=customer, amount=amount)
-        deposit.save()  # Save the deposit record in the database
-
-        return HttpResponseRedirect(f'{frontend_link}/transaction?status=success')
-
-
-
+        except Exception as e:
+            # Log the exception for debugging
+            print(f"Error during balance update: {str(e)}")
+            return HttpResponseRedirect(f'{frontend_link}/fail?status=failed')
 
 class DepositFailed(APIView):
     def post(self, request, *args, **kwargs):

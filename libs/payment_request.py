@@ -26,6 +26,7 @@ def payment_request(amount, user):
     post_body['product_name'] = "Transaction"
     post_body['product_category'] = "Deposit"
     post_body['product_profile'] = "general"
+    post_body['value_a'] = user.id
 
     response = sslcz.createSession(post_body)  # API response
 

@@ -165,8 +165,6 @@ class Deposit(models.Model):
     def __str__(self):
         return f"Deposit by {self.customer.user.username} - {self.amount}"
 
-    def save(self, *args, **kwargs):
-        # Simply save the deposit without modifying customer balance here
-        super().save(*args, **kwargs)
+
 
 
