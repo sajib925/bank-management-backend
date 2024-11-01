@@ -293,7 +293,7 @@ class DepositSuccess(APIView):
         deposit = Deposit(customer=customer, amount=amount)
         deposit.save()  # Save the deposit record in the database
 
-        return Response({'message': 'Deposit successful'}, status=200)
+        return HttpResponseRedirect(f'{frontend_link}/transaction?status=success')
 
 
 
