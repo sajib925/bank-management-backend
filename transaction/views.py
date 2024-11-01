@@ -5,6 +5,7 @@ from rest_framework import status
 from .models import BalanceTransfer, Loan, Deposit, Withdrawal
 from .serializers import BalanceTransferSerializer, LoanSerializer, DepositSerializer, WithdrawalSerializer
 from django.shortcuts import get_object_or_404, redirect
+from django.contrib.auth.models import User
 from account.models import Customer, Manager
 from rest_framework.permissions import IsAuthenticated
 from decimal import Decimal, InvalidOperation
