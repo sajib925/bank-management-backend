@@ -256,7 +256,7 @@ class DepositSuccess(APIView):
         # Safely retrieve the user and associated customer
         # user = get_object_or_404(User, id=user_id)
         # customer = get_object_or_404(Customer, user=user)
-        customer = get_object_or_404(Customer)
+        customer = self.request.user.customer
 
 
         # Update the customer's balance
